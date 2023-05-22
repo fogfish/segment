@@ -22,34 +22,48 @@ const (
 	segment_dirty
 )
 
-type Segment struct {
-	id     skiplist.Arc[Addr]
+type keyNotFound[K skiplist.Num] struct{ key K }
+
+func (err *keyNotFound[K]) Error() string    { return fmt.Sprintf("not found: %d", err.key) }
+func (err *keyNotFound[K]) NotFound() string { return fmt.Sprintf("%v", err.key) }
+
+type Segment[K skiplist.Num, V any] struct {
+	// segment metadata
+	id     skiplist.Arc[K]
 	status segmentStatus
-	store  *skiplist.Map[Addr, string]
-	writer Writer
-	reader Reader
+
+	// segment engines
+	writer Writer[K, V]
+	reader Reader[K, V]
+
+	// segment data
+	store *skiplist.Map[K, V]
 }
 
-func newNode(id skiplist.Arc[Addr], w Writer, r Reader) *Segment {
-	return &Segment{
+func newNode[K skiplist.Num, V any](
+	id skiplist.Arc[K],
+	writer Writer[K, V],
+	reader Reader[K, V],
+) *Segment[K, V] {
+	return &Segment[K, V]{
 		id:     id,
 		status: segment_swapped,
-		writer: w,
-		reader: r,
+		writer: writer,
+		reader: reader,
 	}
 }
 
-func (node *Segment) length() int {
+func (node *Segment[K, V]) length() int {
 	return node.store.Length
 }
 
-func (node *Segment) split(hd, tl skiplist.Arc[Addr]) *Segment {
-	head := &Segment{
+func (node *Segment[K, V]) split(hd, tl skiplist.Arc[K]) *Segment[K, V] {
+	head := &Segment[K, V]{
 		id:     hd,
 		status: node.status,
-		store:  node.store,
 		writer: node.writer,
 		reader: node.reader,
+		store:  node.store,
 	}
 
 	node.store = head.store.Split(tl.Lo)
@@ -57,9 +71,11 @@ func (node *Segment) split(hd, tl skiplist.Arc[Addr]) *Segment {
 	return head
 }
 
-func (node *Segment) put(key Addr, val string) (bool, error) {
+func (node *Segment[K, V]) put(key K, val V) (bool, error) {
 	if node.status == segment_swapped {
-		return false, fmt.Errorf("node is swapped")
+		if err := node.read(); err != nil {
+			return false, err
+		}
 	}
 
 	isCreated := node.store.Put(key, val)
@@ -70,7 +86,37 @@ func (node *Segment) put(key Addr, val string) (bool, error) {
 	return isCreated, nil
 }
 
-func (node *Segment) values() (skiplist.Iterator[Addr, string], error) {
+func (node *Segment[K, V]) get(key K) (V, error) {
+	if node.status == segment_swapped {
+		if err := node.read(); err != nil {
+			return *new(V), err
+		}
+	}
+
+	val, has := node.store.Get(key)
+	if !has {
+		return *new(V), &keyNotFound[K]{key}
+	}
+
+	return val, nil
+}
+
+func (node *Segment[K, V]) cut(key K) (V, error) {
+	if node.status == segment_swapped {
+		if err := node.read(); err != nil {
+			return *new(V), err
+		}
+	}
+
+	val, has := node.store.Cut(key)
+	if !has {
+		return *new(V), &keyNotFound[K]{key}
+	}
+
+	return val, nil
+}
+
+func (node *Segment[K, V]) values() (skiplist.Iterator[K, V], error) {
 	if node.status == segment_swapped {
 		if err := node.read(); err != nil {
 			return nil, err
@@ -80,7 +126,7 @@ func (node *Segment) values() (skiplist.Iterator[Addr, string], error) {
 	return skiplist.ForMap(node.store, node.store.Keys()), nil
 }
 
-func (node *Segment) successors(key Addr) (skiplist.Iterator[Addr, string], error) {
+func (node *Segment[K, V]) successors(key K) (skiplist.Iterator[K, V], error) {
 	if node.status == segment_swapped {
 		if err := node.read(); err != nil {
 			return nil, err
@@ -90,7 +136,7 @@ func (node *Segment) successors(key Addr) (skiplist.Iterator[Addr, string], erro
 	return skiplist.ForMap(node.store, node.store.Successors(key)), nil
 }
 
-func (node *Segment) write() error {
+func (node *Segment[K, V]) write() error {
 	if node.status != segment_dirty {
 		return nil
 	}
@@ -104,13 +150,13 @@ func (node *Segment) write() error {
 	return nil
 }
 
-func (node *Segment) read() error {
+func (node *Segment[K, V]) read() error {
 	if node.status != segment_swapped {
 		return nil
 	}
 
 	if node.reader == nil {
-		node.store = skiplist.NewMap[Addr, string]()
+		node.store = skiplist.NewMap[K, V]()
 		node.status = segment_present
 		return nil
 	}

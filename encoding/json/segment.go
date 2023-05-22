@@ -13,25 +13,24 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/fogfish/segment"
 	"github.com/fogfish/skiplist"
 )
 
-type segmentID struct {
-	Rank uint32       `json:"r"`
-	Lo   segment.Addr `json:"l"`
-	Hi   segment.Addr `json:"h"`
+type segmentID[K skiplist.Num] struct {
+	Rank uint32 `json:"r"`
+	Lo   K      `json:"l"`
+	Hi   K      `json:"h"`
 }
 
-func EncodeGF2(gf2 *skiplist.GF2[segment.Addr], w io.Writer) error {
-	if _, err := w.Write([]byte(`[`)); err != nil {
+func EncodeGF2[K skiplist.Num](gf2 *skiplist.GF2[K], w io.Writer) error {
+	if _, err := w.Write([]byte("[\n")); err != nil {
 		return err
 	}
 
 	seq := skiplist.ForGF2(gf2, gf2.Keys())
 	for has := seq != nil; has; {
 		addr := seq.Value()
-		b, err := json.Marshal(segmentID{Rank: addr.Rank, Lo: addr.Lo, Hi: addr.Hi})
+		b, err := json.Marshal(segmentID[K]{Rank: addr.Rank, Lo: addr.Lo, Hi: addr.Hi})
 		if err != nil {
 			return err
 		}
@@ -48,14 +47,14 @@ func EncodeGF2(gf2 *skiplist.GF2[segment.Addr], w io.Writer) error {
 		}
 	}
 
-	if _, err := w.Write([]byte(`]`)); err != nil {
+	if _, err := w.Write([]byte("\n]")); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func DecodeGF2(gf2 *skiplist.GF2[segment.Addr], r io.Reader) error {
+func DecodeGF2[K skiplist.Num](gf2 *skiplist.GF2[K], r io.Reader) error {
 	c := json.NewDecoder(r)
 	t, err := c.Token()
 	if err != nil {
@@ -66,11 +65,11 @@ func DecodeGF2(gf2 *skiplist.GF2[segment.Addr], r io.Reader) error {
 	}
 
 	for c.More() {
-		var id segmentID
+		var id segmentID[K]
 		if err = c.Decode(&id); err != nil {
 			return err
 		}
-		gf2.Put(skiplist.Arc[segment.Addr]{
+		gf2.Put(skiplist.Arc[K]{
 			Rank: id.Rank,
 			Lo:   id.Lo,
 			Hi:   id.Hi,
@@ -88,19 +87,19 @@ func DecodeGF2(gf2 *skiplist.GF2[segment.Addr], r io.Reader) error {
 	return nil
 }
 
-type keyval struct {
-	Key segment.Addr `json:"k"`
-	Val string       `json:"v"`
+type keyval[K skiplist.Num, V any] struct {
+	Key K `json:"k"`
+	Val V `json:"v"`
 }
 
-func EncodeMap(kv *skiplist.Map[segment.Addr, string], w io.Writer) error {
-	if _, err := w.Write([]byte(`[`)); err != nil {
+func EncodeMap[K skiplist.Num, V any](kv *skiplist.Map[K, V], w io.Writer) error {
+	if _, err := w.Write([]byte("[\n")); err != nil {
 		return err
 	}
 
 	seq := skiplist.ForMap(kv, kv.Keys())
 	for has := seq != nil; has; {
-		b, err := json.Marshal(keyval{Key: seq.Key(), Val: seq.Value()})
+		b, err := json.Marshal(keyval[K, V]{Key: seq.Key(), Val: seq.Value()})
 		if err != nil {
 			return err
 		}
@@ -117,7 +116,7 @@ func EncodeMap(kv *skiplist.Map[segment.Addr, string], w io.Writer) error {
 		}
 	}
 
-	if _, err := w.Write([]byte(`]`)); err != nil {
+	if _, err := w.Write([]byte("\n]")); err != nil {
 		return err
 	}
 
@@ -125,7 +124,7 @@ func EncodeMap(kv *skiplist.Map[segment.Addr, string], w io.Writer) error {
 
 }
 
-func DecodeMap(kv *skiplist.Map[segment.Addr, string], r io.Reader) error {
+func DecodeMap[K skiplist.Num, V any](kv *skiplist.Map[K, V], r io.Reader) error {
 	c := json.NewDecoder(r)
 	t, err := c.Token()
 	if err != nil {
@@ -136,7 +135,7 @@ func DecodeMap(kv *skiplist.Map[segment.Addr, string], r io.Reader) error {
 	}
 
 	for c.More() {
-		var keyval keyval
+		var keyval keyval[K, V]
 		if err = c.Decode(&keyval); err != nil {
 			return err
 		}

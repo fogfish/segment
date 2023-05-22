@@ -14,63 +14,67 @@ import (
 	"github.com/fogfish/skiplist"
 )
 
-// Addr
-type Addr = uint8
+// TODO
+//  - configurable caching behavior
 
-type Writer interface {
-	WriteMeta(*skiplist.GF2[Addr]) error
-	Write(Addr, *skiplist.Map[Addr, string]) error
+type Writer[K skiplist.Num, V any] interface {
+	WriteMeta(*skiplist.GF2[K]) error
+	Write(K, *skiplist.Map[K, V]) error
 }
 
-type Reader interface {
-	ReadMeta() (*skiplist.GF2[Addr], error)
-	Read(Addr) (*skiplist.Map[Addr, string], error)
+type Reader[K skiplist.Num, V any] interface {
+	ReadMeta() (*skiplist.GF2[K], error)
+	Read(K) (*skiplist.Map[K, V], error)
 }
 
 // Persistent skiplist data structure
-type Map struct {
-	gf2      *skiplist.GF2[Addr]
-	segments map[Addr]*Segment
+type Map[K skiplist.Num, V any] struct {
+	// engines
+	writer Writer[K, V]
+	reader Reader[K, V]
+
+	// topology
+	gf2 *skiplist.GF2[K]
+
+	// data of map
 	capacity int
-	writer   Writer
-	reader   Reader
+	segments map[K]*Segment[K, V]
 }
 
-func New(capacity int, writer Writer, reader Reader) (*Map, error) {
-	var (
-		gf2 *skiplist.GF2[Addr]
-		err error
-	)
+func New[K skiplist.Num, V any](
+	capacity int,
+	writer Writer[K, V],
+	reader Reader[K, V],
+) (kv *Map[K, V], err error) {
+	kv = &Map[K, V]{
+		capacity: capacity,
+		reader:   reader,
+		writer:   writer,
+	}
 
-	if reader != nil {
-		gf2, err = reader.ReadMeta()
+	if kv.reader != nil {
+		kv.gf2, err = kv.reader.ReadMeta()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if gf2 == nil {
-		gf2 = skiplist.NewGF2[Addr]()
+	if kv.gf2 == nil {
+		kv.gf2 = skiplist.NewGF2[K]()
 	}
 
-	segments := make(map[Addr]*Segment)
-	arcs := skiplist.ForGF2(gf2, gf2.Keys())
+	kv.segments = make(map[K]*Segment[K, V])
+	arcs := skiplist.ForGF2(kv.gf2, kv.gf2.Keys())
 
 	for has := arcs != nil; has; has = arcs.Next() {
 		id := arcs.Value()
-		segments[id.Hi] = newNode(id, writer, reader)
+		kv.segments[id.Hi] = newNode(id, kv.writer, kv.reader)
 	}
 
-	return &Map{
-		gf2:      gf2,
-		segments: segments,
-		capacity: capacity,
-		writer:   writer,
-		reader:   reader,
-	}, nil
+	return kv, nil
 }
 
-func (kv *Map) segmentForKey(key Addr) (*Segment, error) {
+func (kv *Map[K, V]) segmentForKey(key K) (*Segment[K, V], error) {
 	arc, has := kv.gf2.Get(key)
 	if !has {
 		return nil, fmt.Errorf("non-continuos field of segments")
@@ -88,7 +92,7 @@ func (kv *Map) segmentForKey(key Addr) (*Segment, error) {
 	return segment, nil
 }
 
-func (kv *Map) Put(key Addr, val string) (bool, error) {
+func (kv *Map[K, V]) Put(key K, val V) (bool, error) {
 	node, err := kv.segmentForKey(key)
 	if err != nil {
 		return false, err
@@ -108,8 +112,8 @@ func (kv *Map) Put(key Addr, val string) (bool, error) {
 	return isCreated, nil
 }
 
-func (kv *Map) split(key Addr) {
-	hd, tl := kv.gf2.Add(key)
+func (kv *Map[K, V]) split(addr K) {
+	hd, tl := kv.gf2.Add(addr)
 	if hd.Lo == hd.Hi && hd.Hi == tl.Lo && tl.Lo == tl.Hi {
 		// Not possible to split. Node overloaded
 		return
@@ -120,14 +124,42 @@ func (kv *Map) split(key Addr) {
 	kv.segments[hd.Hi] = head
 
 	if tail.length() > kv.capacity || head.length() > kv.capacity {
-		kv.split(key)
+		kv.split(addr)
 	}
 }
 
-func (kv *Map) Values() (seq skiplist.Iterator[Addr, string], err error) {
+func (kv *Map[K, V]) Get(key K) (V, error) {
+	node, err := kv.segmentForKey(key)
+	if err != nil {
+		return *new(V), err
+	}
+
+	val, err := node.get(key)
+	if err != nil {
+		return val, err
+	}
+
+	return val, nil
+}
+
+func (kv *Map[K, V]) Cut(key K) (V, error) {
+	node, err := kv.segmentForKey(key)
+	if err != nil {
+		return *new(V), err
+	}
+
+	val, err := node.cut(key)
+	if err != nil {
+		return val, err
+	}
+
+	return val, nil
+}
+
+func (kv *Map[K, V]) Values() (seq skiplist.Iterator[K, V], err error) {
 	seq = skiplist.Join(
 		skiplist.ForGF2(kv.gf2, kv.gf2.Keys()),
-		func(addr Addr, arc skiplist.Arc[Addr]) (subseq skiplist.Iterator[Addr, string]) {
+		func(addr K, arc skiplist.Arc[K]) (subseq skiplist.Iterator[K, V]) {
 			if err != nil {
 				return nil
 			}
@@ -141,10 +173,10 @@ func (kv *Map) Values() (seq skiplist.Iterator[Addr, string], err error) {
 	return
 }
 
-func (kv *Map) Successors(key Addr) (seq skiplist.Iterator[Addr, string], err error) {
+func (kv *Map[K, V]) Successors(key K) (seq skiplist.Iterator[K, V], err error) {
 	seq = skiplist.Join(
 		skiplist.ForGF2(kv.gf2, kv.gf2.Successors(key)),
-		func(addr Addr, arc skiplist.Arc[Addr]) (subseq skiplist.Iterator[Addr, string]) {
+		func(addr K, arc skiplist.Arc[K]) (subseq skiplist.Iterator[K, V]) {
 			if err != nil {
 				return nil
 			}
@@ -159,7 +191,7 @@ func (kv *Map) Successors(key Addr) (seq skiplist.Iterator[Addr, string], err er
 	return
 }
 
-func (kv *Map) Sync() error {
+func (kv *Map[K, V]) Sync() error {
 	if kv.writer == nil {
 		return fmt.Errorf("no writer")
 	}
