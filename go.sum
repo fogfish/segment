@@ -1,0 +1,5 @@
+github.com/fogfish/golem/trait v0.2.0 h1:cgc+5TEpmoYfR3hMZZAJDvp7k9wRrYbrGT93isKHq28=
+github.com/fogfish/golem/trait v0.2.0/go.mod h1:MLcG+cb4EQvdvyW/dFUpm+1WWsmS/khiOlfs7Eoe1ko=
+github.com/fogfish/guid/v2 v2.0.4 h1:EZiPlM4UAghqf7DU5/nLEF+iRH7ODe0AiFuYOMRvITQ=
+github.com/fogfish/guid/v2 v2.0.4/go.mod h1:KkZ5T4EE3BqWQJFZBPLSHV/tBe23Xq4KvuPfwtNtepU=
+github.com/fogfish/it/v2 v2.0.1 h1:vu3kV2xzYDPHoMHMABxXeu5CoMcTfRc4gkWkzOUkRJY=
