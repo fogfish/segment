@@ -1,3 +1,11 @@
+//
+// Copyright (C) 2023 Dmitry Kolesnikov
+//
+// This file may be modified and distributed under the terms
+// of the MIT license.  See the LICENSE file for details.
+// https://github.com/fogfish/segment
+//
+
 package bytes
 
 import (
@@ -8,69 +16,6 @@ import (
 	"github.com/fogfish/segment/internal/sortedmap"
 	"github.com/fogfish/skiplist"
 )
-
-// type Pair[K skiplist.Key, V any] skiplist.Pair[K, V]
-
-// func (p Pair[K, V]) EncodeBytes(w io.Writer) error {
-// 	switch v := any(p.Key).(type) {
-// 	case uint32:
-// 		if err := EncodeUInt32(w, v); err != nil {
-// 			return err
-// 		}
-// 	// case interface{ EncodeBytes(io.Writer) error }:
-// 	// 	if err := v.EncodeBytes(w); err != nil {
-// 	// 		return err
-// 	// 	}
-// 	default:
-// 		return fmt.Errorf("type %T does not support bytes encoder", p.Key)
-// 	}
-
-// 	switch v := any(p.Value).(type) {
-// 	case string:
-// 		if err := EncodeString(w, v); err != nil {
-// 			return err
-// 		}
-// 	// case interface{ EncodeBytes(io.Writer) error }:
-// 	// 	if err := v.EncodeBytes(w); err != nil {
-// 	// 		return err
-// 	// 	}
-// 	default:
-// 		return fmt.Errorf("type %T does not support bytes encoder", p.Value)
-// 	}
-
-// 	return nil
-// }
-
-// func (p *Pair[K, V]) DecodeBytes(r io.Reader) error {
-// 	switch v := any(&p.Key).(type) {
-// 	case *uint32:
-// 		if err := DecodeUInt32(r, v); err != nil {
-// 			return err
-// 		}
-// 	// case interface{ EncodeBytes(io.Writer) error }:
-// 	// 	if err := v.EncodeBytes(w); err != nil {
-// 	// 		return err
-// 	// 	}
-// 	default:
-// 		return fmt.Errorf("type %T does not support bytes encoder", p.Key)
-// 	}
-
-// 	switch v := any(&p.Value).(type) {
-// 	case *string:
-// 		if err := DecodeString(r, v); err != nil {
-// 			return err
-// 		}
-
-// 	// case interface{ EncodeBytes(io.Writer) error }:
-// 	// 	if err := v.EncodeBytes(w); err != nil {
-// 	// 		return err
-// 	// 	}
-// 	default:
-// 		return fmt.Errorf("type %T does not support bytes encoder", p.Value)
-// 	}
-
-// 	return nil
-// }
 
 // -----------------------------------------------------------------------------------------
 
