@@ -96,8 +96,8 @@ func (kv *Map[K, V]) Get(key K) (V, error) {
 		return *new(V), err
 	}
 
-	v, has := kv.store.Get(key)
-	if !has {
+	v, node := kv.store.Get(key)
+	if node == nil {
 		return *new(V), &keyNotFound[K]{key}
 	}
 

@@ -1,6 +1,8 @@
 package sortedmap
 
-import "github.com/fogfish/skiplist"
+import (
+	"github.com/fogfish/skiplist"
+)
 
 func Predecessor[K skiplist.Key, V any](
 	kv *skiplist.Map[K, V],
@@ -8,6 +10,11 @@ func Predecessor[K skiplist.Key, V any](
 	key K,
 ) *skiplist.Pair[K, V] {
 	el, path := kv.Skip(level, key)
+
+	if el == nil {
+		return kv.Head()
+	}
+
 	if el.Key == key {
 		return el
 	}
