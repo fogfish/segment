@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/fogfish/golem/trait/pair"
-	"github.com/fogfish/guid/v2"
 	"github.com/fogfish/segment/internal/sortedmap"
 	"github.com/fogfish/skiplist"
 )
@@ -54,10 +53,7 @@ func New[K skiplist.Key, V any](
 	// Segment map must contain head of skiplist
 	if len(segments) == 0 {
 		head := store.Head()
-		segments[head.Key] = &Segment[K, V]{
-			ID: guid.G(guid.Clock),
-			Lo: head,
-		}
+		segments[head.Key] = NewSegment(head)
 	}
 
 	return &Map[K, V]{
@@ -172,12 +168,7 @@ func (kv *Map[K, V]) ensureSegment(pair *skiplist.Pair[K, V]) error {
 }
 
 func (kv *Map[K, V]) splitSegment(pair *skiplist.Pair[K, V], segment *skiplist.Pair[K, V]) error {
-	kv.segments[pair.Key] = &Segment[K, V]{
-		ID:      guid.G(guid.Clock),
-		Lo:      pair,
-		Hi:      pair.NextOn(L),
-		Swapped: false,
-	}
+	kv.segments[pair.Key] = NewSegment(pair)
 
 	splitted := kv.segments[segment.Key]
 	splitted.Hi = pair
